@@ -1160,6 +1160,9 @@
                 // Load settings
                 await loadAllSettings();
                 
+                // Load shared password
+                await loadPasswordFromSupabase();
+                
                 // Setup real-time subscriptions
                 setupRealtimeSubscriptions();
             } else {
@@ -1215,15 +1218,29 @@
 
         // Password & Lock Management
         let isUnlocked = false;
-        let storedPassword = localStorage.getItem('dashboardPassword');
+        let storedPassword = null; // Will be loaded from Supabase
         let isSettingPassword = false;
 
-        function toggleLock() {
+        // Load password from Supabase on startup
+        async function loadPasswordFromSupabase() {
+            if (isSupabaseConfigured) {
+                storedPassword = await loadSettingFromSupabase('sharedPassword');
+            } else {
+                storedPassword = localStorage.getItem('dashboardPassword');
+            }
+        }
+
+        async function toggleLock() {
+            // Ensure password is loaded
+            if (storedPassword === null) {
+                await loadPasswordFromSupabase();
+            }
+
             if (!storedPassword) {
                 // First time - set password
                 isSettingPassword = true;
-                document.getElementById('modalTitle').textContent = 'Set Password';
-                document.getElementById('passwordInput').placeholder = 'Create a password';
+                document.getElementById('modalTitle').textContent = 'Set Shared Password';
+                document.getElementById('passwordInput').placeholder = 'Create a shared password for all users';
                 document.getElementById('passwordModal').classList.add('active');
             } else if (isUnlocked) {
                 // Lock the dashboard
@@ -1232,12 +1249,12 @@
                 // Unlock the dashboard
                 isSettingPassword = false;
                 document.getElementById('modalTitle').textContent = 'Enter Password';
-                document.getElementById('passwordInput').placeholder = 'Enter password';
+                document.getElementById('passwordInput').placeholder = 'Enter shared password';
                 document.getElementById('passwordModal').classList.add('active');
             }
         }
 
-        function submitPassword() {
+        async function submitPassword() {
             const input = document.getElementById('passwordInput');
             const password = input.value;
 
@@ -1247,11 +1264,18 @@
             }
 
             if (isSettingPassword) {
-                // Setting new password
+                // Setting new shared password
                 storedPassword = password;
-                localStorage.setItem('dashboardPassword', password);
+                
+                if (isSupabaseConfigured) {
+                    await saveSettingToSupabase('sharedPassword', password);
+                    alert('Shared password set successfully! All users will use this password.');
+                } else {
+                    localStorage.setItem('dashboardPassword', password);
+                    alert('Password set successfully!');
+                }
+                
                 unlockDashboard();
-                alert('Password set successfully!');
             } else {
                 // Verifying password
                 if (password === storedPassword) {
